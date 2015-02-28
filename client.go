@@ -20,12 +20,13 @@ type Client struct {
 
 type Result struct {
 	UUID string
-	Val  interface{}
+	Data []byte
+	Err  error
 }
 
 type rpcMsg struct {
 	Method string
-	Args   []interface{}
+	Data   []byte
 }
 
 func NewClient(uri, queue string) *Client {
@@ -99,7 +100,7 @@ func (c *Client) Shutdown() error {
 	return c.ac.shutdown()
 }
 
-func (c *Client) Call(method string, args ...interface{}) (uuid string, err error) {
+func (c *Client) Call(method string, data []byte) (uuid string, err error) {
 	uuid, err = UUID()
 	if err != nil {
 		return "", fmt.Errorf("UUID: %v", err)
@@ -107,7 +108,7 @@ func (c *Client) Call(method string, args ...interface{}) (uuid string, err erro
 
 	msg := &rpcMsg{
 		Method: method,
-		Args:   args,
+		Data:   data,
 	}
 	body, err := json.Marshal(msg)
 	if err != nil {

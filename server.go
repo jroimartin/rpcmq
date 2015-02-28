@@ -12,7 +12,7 @@ import (
 	"github.com/streadway/amqp"
 )
 
-type Function func(args ...interface{}) (interface{}, error)
+type Function func(data []byte) ([]byte, error)
 
 type Server struct {
 	queue      string
@@ -85,32 +85,33 @@ func (s *Server) getDeliveries() {
 		}
 
 		var (
-			r   interface{}
+			ret []byte
 			err error
 		)
-		if f, ok := s.methods[msg.Method]; ok {
-			if r, err = f(msg.Args...); err != nil {
-				d.Nack(false, true)
-				continue
-			}
+		f, ok := s.methods[msg.Method]
+		if ok {
+			ret, err = f(msg.Data)
+		} else {
+			err = errors.New("method has not been registered")
 		}
 
 		result := &Result{
 			UUID: d.CorrelationId,
-			Val:  r,
+			Data: ret,
+			Err:  err,
 		}
 		body, err := json.Marshal(result)
 		if err != nil {
-			d.Nack(false, true)
+			d.Nack(false, true) // requeue
 			continue
 		}
 
 		s.ac.channel.Publish(
-			"",
-			d.ReplyTo,
-			false,
-			false,
-			amqp.Publishing{
+			"",        // exchange
+			d.ReplyTo, // key
+			false,     // mandatory
+			false,     // immediate
+			amqp.Publishing{ // msg
 				CorrelationId: d.CorrelationId,
 				ContentType:   "application/json",
 				Body:          body,
