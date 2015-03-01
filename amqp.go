@@ -31,6 +31,7 @@ func newAmqpRpc(uri string) *amqpClient {
 
 func (r *amqpClient) init() error {
 	var err error
+	// TODO(jrm): support TLS
 	r.conn, err = amqp.Dial(r.uri)
 	if err != nil {
 		return fmt.Errorf("Dial: %v", err)
