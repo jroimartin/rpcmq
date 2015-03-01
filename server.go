@@ -15,17 +15,18 @@ import (
 type Function func(data []byte) ([]byte, error)
 
 type Server struct {
-	queue      string
+	queueName  string
 	ac         *amqpClient
+	queue      amqp.Queue
 	deliveries <-chan amqp.Delivery
 	methods    map[string]Function
 }
 
 func NewServer(uri, queue string) *Server {
 	s := &Server{
-		queue:   queue,
-		methods: make(map[string]Function),
-		ac:      newAmqpRpc(uri),
+		queueName: queue,
+		methods:   make(map[string]Function),
+		ac:        newAmqpRpc(uri),
 	}
 	return s
 }
@@ -36,13 +37,13 @@ func (s *Server) Init() error {
 	}
 
 	var err error
-	s.ac.queue, err = s.ac.channel.QueueDeclare(
-		s.queue, // name
-		true,    // durable
-		false,   // autoDelete
-		false,   // exclusive
-		false,   // noWait
-		nil,     // args
+	s.queue, err = s.ac.channel.QueueDeclare(
+		s.queueName, // name
+		true,        // durable
+		false,       // autoDelete
+		false,       // exclusive
+		false,       // noWait
+		nil,         // args
 	)
 	if err != nil {
 		return fmt.Errorf("Queue Declare: %v", err)
@@ -54,7 +55,7 @@ func (s *Server) Init() error {
 	}
 
 	s.deliveries, err = s.ac.channel.Consume(
-		s.queue,          // name
+		s.queueName,      // name
 		s.ac.consumerTag, // consumer
 		false,            // autoAck
 		false,            // exclusive
@@ -109,13 +110,13 @@ func (s *Server) getDeliveries() {
 		s.ac.channel.Publish(
 			"",        // exchange
 			d.ReplyTo, // key
-			false,     // mandatory
+			true,      // mandatory
 			false,     // immediate
 			amqp.Publishing{ // msg
 				CorrelationId: d.CorrelationId,
 				ContentType:   "application/json",
 				Body:          body,
-				DeliveryMode:  amqp.Persistent, // TODO(jrm): Configurable mode
+				DeliveryMode:  amqp.Persistent,
 			},
 		)
 		d.Ack(false)

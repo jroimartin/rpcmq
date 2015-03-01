@@ -5,13 +5,23 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"log"
+	"os"
 
 	"github.com/jroimartin/rpcmq"
 )
 
 func main() {
-	s := rpcmq.NewServer("amqp://127.0.0.1:5672", "rcp-queue")
+	flag.Parse()
+	if flag.NArg() != 1 {
+		fmt.Fprintln(os.Stderr, "usage: server uri")
+		os.Exit(2)
+	}
+	uri := flag.Arg(0)
+
+	s := rpcmq.NewServer(uri, "rcp-queue")
 	if err := s.Init(); err != nil {
 		log.Fatalf("Init: %v", err)
 	}

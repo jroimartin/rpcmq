@@ -16,14 +16,15 @@ type amqpClient struct {
 
 	conn    *amqp.Connection
 	channel *amqp.Channel
-	queue   amqp.Queue
+	returns chan amqp.Return
 	done    chan bool
 }
 
 func newAmqpRpc(uri string) *amqpClient {
 	r := &amqpClient{
-		done: make(chan bool),
-		uri:  uri,
+		returns: make(chan amqp.Return),
+		done:    make(chan bool),
+		uri:     uri,
 	}
 	return r
 }
@@ -40,7 +41,17 @@ func (r *amqpClient) init() error {
 		return fmt.Errorf("Channel: %v", err)
 	}
 
+	go r.trackErrors()
+
 	return nil
+}
+
+func (r *amqpClient) trackErrors() {
+	for ret := range r.channel.NotifyReturn(r.returns) {
+		if ret.ReplyCode == amqp.NoRoute {
+			panic("no route")
+		}
+	}
 }
 
 func (r *amqpClient) shutdown() error {

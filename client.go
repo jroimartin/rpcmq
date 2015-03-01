@@ -12,10 +12,12 @@ import (
 )
 
 type Client struct {
-	queue      string
-	ac         *amqpClient
-	deliveries <-chan amqp.Delivery
-	results    chan Result
+	queueName    string
+	ac           *amqpClient
+	queue        amqp.Queue
+	queueReplies amqp.Queue
+	deliveries   <-chan amqp.Delivery
+	results      chan Result
 }
 
 type Result struct {
@@ -31,9 +33,9 @@ type rpcMsg struct {
 
 func NewClient(uri, queue string) *Client {
 	c := &Client{
-		queue:   queue,
-		ac:      newAmqpRpc(uri),
-		results: make(chan Result),
+		queueName: queue,
+		ac:        newAmqpRpc(uri),
+		results:   make(chan Result),
 	}
 	return c
 }
@@ -44,7 +46,18 @@ func (c *Client) Init() error {
 	}
 
 	var err error
-	c.ac.queue, err = c.ac.channel.QueueDeclare(
+	c.queue, err = c.ac.channel.QueueDeclare(
+		c.queueName, // name
+		true,        // durable
+		false,       // autoDelete
+		false,       // exclusive
+		false,       // noWait
+		nil,         // args
+	)
+	if err != nil {
+		return fmt.Errorf("Queue Declare: %v", err)
+	}
+	c.queueReplies, err = c.ac.channel.QueueDeclare(
 		"",    // name
 		true,  // durable
 		false, // autoDelete
@@ -62,13 +75,13 @@ func (c *Client) Init() error {
 	}
 
 	c.deliveries, err = c.ac.channel.Consume(
-		c.ac.queue.Name,  // name
-		c.ac.consumerTag, // consumer
-		false,            // autoAck
-		false,            // exclusive
-		false,            // noLocal
-		false,            // noWait
-		nil,              // args
+		c.queueReplies.Name, // name
+		c.ac.consumerTag,    // consumer
+		false,               // autoAck
+		false,               // exclusive
+		false,               // noLocal
+		false,               // noWait
+		nil,                 // args
 	)
 	if err != nil {
 		return fmt.Errorf("Queue Consume: %v", err)
@@ -116,16 +129,16 @@ func (c *Client) Call(method string, data []byte) (uuid string, err error) {
 	}
 
 	err = c.ac.channel.Publish(
-		"",      // exchange
-		c.queue, // key
-		false,   // mandatory
-		false,   // immediate
+		"",          // exchange
+		c.queueName, // key
+		true,        // mandatory
+		false,       // immediate
 		amqp.Publishing{ // msg
 			CorrelationId: uuid,
-			ReplyTo:       c.ac.queue.Name,
+			ReplyTo:       c.queueReplies.Name,
 			ContentType:   "application/json",
 			Body:          body,
-			DeliveryMode:  amqp.Persistent, // TODO(jrm): Configurable mode
+			DeliveryMode:  amqp.Persistent,
 		},
 	)
 	if err != nil {
