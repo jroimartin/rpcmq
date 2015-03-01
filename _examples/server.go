@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/jroimartin/rpcmq"
 )
@@ -29,7 +30,14 @@ func main() {
 	if err := s.Register("reverse", reverse); err != nil {
 		log.Fatalf("Register: %v", err)
 	}
+	if err := s.Register("toUpper", toUpper); err != nil {
+		log.Fatalf("Register: %v", err)
+	}
 	select {}
+}
+
+func toUpper(data []byte) ([]byte, error) {
+	return []byte(strings.ToUpper(string(data))), nil
 }
 
 func reverse(data []byte) ([]byte, error) {

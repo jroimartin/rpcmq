@@ -7,6 +7,7 @@ package rpcmq
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 
 	"github.com/streadway/amqp"
 )
@@ -23,7 +24,7 @@ type Client struct {
 type Result struct {
 	UUID string
 	Data []byte
-	Err  error
+	Err  string
 }
 
 type rpcMsg struct {
@@ -95,12 +96,14 @@ func (c *Client) Init() error {
 func (c *Client) getDeliveries() {
 	for d := range c.deliveries {
 		if d.CorrelationId == "" {
-			d.Nack(false, false)
+			d.Nack(false, false) // drop message
+			log.Printf("dropped message: %+v\n", d)
 			continue
 		}
 		var r Result
 		if err := json.Unmarshal(d.Body, &r); err != nil {
-			d.Nack(false, false)
+			d.Nack(false, false) // drop message
+			log.Printf("dropped message: %+v\n", d)
 			continue
 		}
 		c.results <- r

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/streadway/amqp"
 )
@@ -75,42 +76,47 @@ func (s *Server) Init() error {
 func (s *Server) getDeliveries() {
 	for d := range s.deliveries {
 		if d.CorrelationId == "" || d.ReplyTo == "" {
-			d.Nack(false, false)
-			continue
-		}
-
-		var msg rpcMsg
-		if err := json.Unmarshal(d.Body, &msg); err != nil {
-			d.Nack(false, false)
+			d.Nack(false, false) // drop message
+			log.Printf("dropped message: %+v\n", d)
 			continue
 		}
 
 		var (
+			msg rpcMsg
 			ret []byte
 			err error
 		)
-		f, ok := s.methods[msg.Method]
-		if ok {
-			ret, err = f(msg.Data)
+		if err = json.Unmarshal(d.Body, &msg); err == nil {
+			f, ok := s.methods[msg.Method]
+			if ok {
+				ret, err = f(msg.Data)
+			} else {
+				err = errors.New("method has not been registered")
+			}
 		} else {
-			err = errors.New("method has not been registered")
+			err = errors.New("cannot unmarshal message")
 		}
 
+		errStr := ""
+		if err != nil {
+			errStr = err.Error()
+		}
 		result := &Result{
 			UUID: d.CorrelationId,
 			Data: ret,
-			Err:  err,
+			Err:  errStr,
 		}
 		body, err := json.Marshal(result)
 		if err != nil {
-			d.Nack(false, true) // requeue
+			d.Nack(false, true) // requeue message
+			log.Printf("requeued message: %+v\n", d)
 			continue
 		}
 
 		s.ac.channel.Publish(
 			"",        // exchange
 			d.ReplyTo, // key
-			true,      // mandatory
+			false,     // mandatory
 			false,     // immediate
 			amqp.Publishing{ // msg
 				CorrelationId: d.CorrelationId,

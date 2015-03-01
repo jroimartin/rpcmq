@@ -36,6 +36,11 @@ func main() {
 				log.Println("Call:", err)
 			}
 			log.Printf("Sent: reverse(%v) (%v)\n", string(data), uuid)
+			uuid, err = c.Call("toUpper", data)
+			if err != nil {
+				log.Println("Call:", err)
+			}
+			log.Printf("Sent: toUpper(%v) (%v)\n", string(data), uuid)
 			time.Sleep(200 * time.Millisecond)
 		}
 	}()
@@ -43,7 +48,7 @@ func main() {
 	go func() {
 		for {
 			r := <-c.Results()
-			if r.Err != nil {
+			if r.Err != "" {
 				log.Printf("Received error: %v (%v)", r.Err, r.UUID)
 				continue
 			}
