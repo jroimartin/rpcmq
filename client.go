@@ -70,7 +70,7 @@ func (c *Client) Init() error {
 		return fmt.Errorf("Queue Declare: %v", err)
 	}
 
-	c.ac.consumerTag, err = UUID()
+	c.ac.consumerTag, err = uuid()
 	if err != nil {
 		return fmt.Errorf("UUID: %v", err)
 	}
@@ -116,8 +116,8 @@ func (c *Client) Shutdown() error {
 	return c.ac.shutdown()
 }
 
-func (c *Client) Call(method string, data []byte) (uuid string, err error) {
-	uuid, err = UUID()
+func (c *Client) Call(method string, data []byte) (id string, err error) {
+	id, err = uuid()
 	if err != nil {
 		return "", fmt.Errorf("UUID: %v", err)
 	}
@@ -137,7 +137,7 @@ func (c *Client) Call(method string, data []byte) (uuid string, err error) {
 		true,        // mandatory
 		false,       // immediate
 		amqp.Publishing{ // msg
-			CorrelationId: uuid,
+			CorrelationId: id,
 			ReplyTo:       c.queueReplies.Name,
 			ContentType:   "application/json",
 			Body:          body,
@@ -148,7 +148,7 @@ func (c *Client) Call(method string, data []byte) (uuid string, err error) {
 		return "", err
 	}
 
-	return uuid, nil
+	return id, nil
 }
 
 func (c *Client) Results() <-chan Result {

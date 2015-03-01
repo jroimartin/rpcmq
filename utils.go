@@ -9,7 +9,7 @@ import (
 	"encoding/hex"
 )
 
-func UUID() (string, error) {
+func uuid() (string, error) {
 	uuid := make([]byte, 16)
 	if _, err := rand.Read(uuid); err != nil {
 		return "", err

@@ -61,11 +61,10 @@ func (r *amqpClient) shutdown() error {
 			return fmt.Errorf("Channel Close: %v", err)
 		}
 	}
+	<-r.done
 
 	if err := r.conn.Close(); err != nil {
 		return fmt.Errorf("Connection Close: %v", err)
 	}
-
-	<-r.done
 	return nil
 }

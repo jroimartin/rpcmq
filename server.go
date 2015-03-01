@@ -59,7 +59,7 @@ func (s *Server) Init() error {
 		return fmt.Errorf("Queue Declare: %v", err)
 	}
 
-	s.ac.consumerTag, err = UUID()
+	s.ac.consumerTag, err = uuid()
 	if err != nil {
 		return fmt.Errorf("UUID: %v", err)
 	}
