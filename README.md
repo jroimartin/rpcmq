@@ -1,8 +1,16 @@
-# rpcmq
+# rpcmq [![GoDoc](https://godoc.org/github.com/jroimartin/rpcmq?status.svg)](https://godoc.org/github.com/jroimartin/rpcmq)
 
 ## Introduction
 
 The package rpcmq implements an RPC protocol over AMQP.
+
+## Installation
+
+`go get github.com/jroimartin/rpcmq`
+
+## Documentation
+
+`godoc github.com/jroimartin/rpcmq`
 
 ## Examples
 
@@ -12,7 +20,7 @@ server using rpcmq. In this example the server registers a new method called
 the RPC client will invoke this method remotely. Then, after 10 seconds, the
 client and the server will shutdown.
 
-*server.go*
+**server.go**
 
 ```go
 package main
@@ -44,7 +52,7 @@ func toUpper(data []byte) ([]byte, error) {
 }
 ```
 
-*client.go*
+**client.go**
 
 ```go
 package main
@@ -92,11 +100,3 @@ func main() {
 This code will generate the following output:
 
 ![screen shot 2015-03-02 at 19 15 13](https://cloud.githubusercontent.com/assets/1223476/6447391/369199c6-c112-11e4-9961-782838e81257.png)
-
-## Installation
-
-`go get github.com/jroimartin/rpcmq`
-
-## More information
-
-`godoc github.com/jroimartin/rpcmq`
