@@ -91,7 +91,7 @@ func main() {
 
 This code will generate the following output:
 
-[screen shot 2015-03-02 at 19 15 13](https://cloud.githubusercontent.com/assets/1223476/6447391/369199c6-c112-11e4-9961-782838e81257.png)
+![screen shot 2015-03-02 at 19 15 13](https://cloud.githubusercontent.com/assets/1223476/6447391/369199c6-c112-11e4-9961-782838e81257.png)
 
 ## Installation
 
