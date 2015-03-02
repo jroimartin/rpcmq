@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/streadway/amqp"
 )
@@ -116,7 +117,7 @@ func (c *Client) Shutdown() error {
 	return c.ac.shutdown()
 }
 
-func (c *Client) Call(method string, data []byte) (id string, err error) {
+func (c *Client) Call(method string, data []byte, ttl time.Duration) (id string, err error) {
 	id, err = uuid()
 	if err != nil {
 		return "", fmt.Errorf("UUID: %v", err)
@@ -131,6 +132,10 @@ func (c *Client) Call(method string, data []byte) (id string, err error) {
 		return "", fmt.Errorf("Marshal: %v", err)
 	}
 
+	expiration := ""
+	if ttl > 0 {
+		expiration = fmt.Sprintf("%d", int64(ttl.Seconds()*1000))
+	}
 	err = c.ac.channel.Publish(
 		"",          // exchange
 		c.queueName, // key
@@ -142,6 +147,7 @@ func (c *Client) Call(method string, data []byte) (id string, err error) {
 			ContentType:   "application/json",
 			Body:          body,
 			DeliveryMode:  amqp.Persistent,
+			Expiration:    expiration,
 		},
 	)
 	if err != nil {

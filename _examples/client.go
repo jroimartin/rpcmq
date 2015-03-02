@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"time"
 
 	"github.com/jroimartin/rpcmq"
@@ -22,6 +23,9 @@ func main() {
 	}
 	uri := flag.Arg(0)
 
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, os.Kill)
+
 	c := rpcmq.NewClient(uri, "rcp-queue")
 	if err := c.Init(); err != nil {
 		log.Fatalf("Init: %v", err)
@@ -31,12 +35,12 @@ func main() {
 	go func() {
 		for {
 			data := []byte("Hello gophers!")
-			uuid, err := c.Call("reverse", data)
+			uuid, err := c.Call("reverse", data, 0)
 			if err != nil {
 				log.Println("Call:", err)
 			}
 			log.Printf("Sent: reverse(%v) (%v)\n", string(data), uuid)
-			uuid, err = c.Call("toUpper", data)
+			uuid, err = c.Call("toUpper", data, 5*time.Second)
 			if err != nil {
 				log.Println("Call:", err)
 			}
@@ -46,8 +50,7 @@ func main() {
 	}()
 
 	go func() {
-		for {
-			r := <-c.Results()
+		for r := range c.Results() {
 			if r.Err != "" {
 				log.Printf("Received error: %v (%v)", r.Err, r.UUID)
 				continue
@@ -56,5 +59,6 @@ func main() {
 		}
 	}()
 
-	select {}
+	<-sig
+	log.Println("shutting down")
 }

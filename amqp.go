@@ -66,5 +66,6 @@ func (r *amqpClient) shutdown() error {
 	if err := r.conn.Close(); err != nil {
 		return fmt.Errorf("Connection Close: %v", err)
 	}
+
 	return nil
 }
