@@ -14,8 +14,12 @@ import (
 	"github.com/streadway/amqp"
 )
 
+// The type Function declares the signature of the methods that can be
+// registered by an RPC server.
 type Function func(data []byte) ([]byte, error)
 
+// A Server is an RPC sever, which is used to register the methods than can be
+// invoked remotely.
 type Server struct {
 	queueName string
 	ac        *amqpClient
@@ -26,9 +30,16 @@ type Server struct {
 	parallelMethods chan bool
 	deliveries      <-chan amqp.Delivery
 
+	// Parallel allows to define the number of methods to be run in
+	// parallel
 	Parallel int
 }
 
+// NewServer returns a reference to a Server object. The paremeter uri is the
+// network address of the broker and queue is the name of queue that will be
+// created to exchange the messages between clients and servers.
+//
+// It is important to note that it needs to be initialized before being used.
 func NewServer(uri, queue string) *Server {
 	s := &Server{
 		queueName: queue,
@@ -39,6 +50,8 @@ func NewServer(uri, queue string) *Server {
 	return s
 }
 
+// Init initializes the Server object. It establishes the connection with the
+// broker, creating a channel and the queues that will be used under the hood.
 func (s *Server) Init() error {
 	if err := s.ac.init(); err != nil {
 		return err
@@ -152,6 +165,8 @@ func (s *Server) handleDelivery(d amqp.Delivery) {
 
 }
 
+// Register registers a method with the name given by the parameter method and
+// links the function f to it.
 func (s *Server) Register(method string, f Function) error {
 	if _, exists := s.methods[method]; exists {
 		return errors.New("Duplicate method name")
@@ -160,6 +175,9 @@ func (s *Server) Register(method string, f Function) error {
 	return nil
 }
 
+// Shutdown shuts down the server gracefully. Using this method will ensure
+// that all requests sent by the RPC clients to the server will be handled by
+// the latter.
 func (s *Server) Shutdown() error {
 	return s.ac.shutdown()
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/streadway/amqp"
 )
 
+// A Client is an RPC client, which is used to invoke remote procedures.
 type Client struct {
 	queueName    string
 	ac           *amqpClient
@@ -22,6 +23,9 @@ type Client struct {
 	results      chan Result
 }
 
+// A Result contains the data returned by the invoked procedure or an error
+// message, in case that it finished with error. The UUID allows to link the
+// result with the procedure call.
 type Result struct {
 	UUID string
 	Data []byte
@@ -33,6 +37,11 @@ type rpcMsg struct {
 	Data   []byte
 }
 
+// NewClient returns a reference to a Client object. The paremeter uri is the
+// network address of the broker and queue is the name of queue that will be
+// created to exchange the messages between clients and servers.
+//
+// It is important to note that it needs to be initialized before being used.
 func NewClient(uri, queue string) *Client {
 	c := &Client{
 		queueName: queue,
@@ -42,6 +51,8 @@ func NewClient(uri, queue string) *Client {
 	return c
 }
 
+// Init initializes the Client object. It establishes the connection with the
+// broker, creating a channel and the queues that will be used under the hood.
 func (c *Client) Init() error {
 	if err := c.ac.init(); err != nil {
 		return err
@@ -113,10 +124,18 @@ func (c *Client) getDeliveries() {
 	c.ac.done <- true
 }
 
+// Shutdown shuts down the client gracefully. Using this method will ensure
+// that all replies sent by the RPC servers to the client will be received by
+// the latter.
 func (c *Client) Shutdown() error {
 	return c.ac.shutdown()
 }
 
+// Call invokes the remote procedure specified by the parameter method, being
+// the parameter data the input passed to it. On the other hand, ttl is the
+// time that this task will remain in the queue before being considered dead.
+// The returned id can be used to identify the result corresponding to each
+// invokation.
 func (c *Client) Call(method string, data []byte, ttl time.Duration) (id string, err error) {
 	id, err = uuid()
 	if err != nil {
@@ -157,6 +176,8 @@ func (c *Client) Call(method string, data []byte, ttl time.Duration) (id string,
 	return id, nil
 }
 
+// Results returns a channel used to receive the results returned by the
+// invoked procedures.
 func (c *Client) Results() <-chan Result {
 	return (<-chan Result)(c.results)
 }
