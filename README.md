@@ -34,7 +34,7 @@ import (
 )
 
 func main() {
-	s := rpcmq.NewServer("amqp://localhost:5672", "rcp-queue")
+	s := rpcmq.NewServer("amqp://amqp_broker:5672", "rcp-queue")
 	if err := s.Init(); err != nil {
 		log.Fatalf("Init: %v", err)
 	}
@@ -48,6 +48,7 @@ func main() {
 }
 
 func toUpper(data []byte) ([]byte, error) {
+	log.Printf("Received: toUpper(%v)\n", string(data))
 	return []byte(strings.ToUpper(string(data))), nil
 }
 ```
@@ -65,7 +66,7 @@ import (
 )
 
 func main() {
-	c := rpcmq.NewClient("amqp://localhost:5672", "rcp-queue")
+	c := rpcmq.NewClient("amqp://amqp_broker:5672", "rcp-queue")
 	if err := c.Init(); err != nil {
 		log.Fatalf("Init: %v", err)
 	}
