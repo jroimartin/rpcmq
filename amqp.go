@@ -5,6 +5,7 @@
 package rpcmq
 
 import (
+	"crypto/tls"
 	"fmt"
 
 	"github.com/streadway/amqp"
@@ -18,6 +19,8 @@ type amqpClient struct {
 	channel *amqp.Channel
 	returns chan amqp.Return
 	done    chan bool
+
+	tlsConfig *tls.Config
 }
 
 func newAmqpRpc(uri string) *amqpClient {
@@ -31,10 +34,9 @@ func newAmqpRpc(uri string) *amqpClient {
 
 func (r *amqpClient) init() error {
 	var err error
-	// TODO(jrm): support TLS
-	r.conn, err = amqp.Dial(r.uri)
+	r.conn, err = amqp.DialTLS(r.uri, r.tlsConfig)
 	if err != nil {
-		return fmt.Errorf("Dial: %v", err)
+		return fmt.Errorf("DialTLS: %v", err)
 	}
 
 	r.channel, err = r.conn.Channel()

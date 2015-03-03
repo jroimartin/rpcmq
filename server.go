@@ -5,6 +5,7 @@
 package rpcmq
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,13 +34,15 @@ type Server struct {
 	// Parallel allows to define the number of methods to be run in
 	// parallel
 	Parallel int
+
+	// TLSConfig allows to configure the TLS parameters used to connect to
+	// the broker via amqps
+	TLSConfig *tls.Config
 }
 
 // NewServer returns a reference to a Server object. The paremeter uri is the
 // network address of the broker and queue is the name of queue that will be
 // created to exchange the messages between clients and servers.
-//
-// It is important to note that it needs to be initialized before being used.
 func NewServer(uri, queue string) *Server {
 	s := &Server{
 		queueName: queue,
@@ -53,6 +56,7 @@ func NewServer(uri, queue string) *Server {
 // Init initializes the Server object. It establishes the connection with the
 // broker, creating a channel and the queues that will be used under the hood.
 func (s *Server) Init() error {
+	s.ac.tlsConfig = s.TLSConfig
 	if err := s.ac.init(); err != nil {
 		return err
 	}

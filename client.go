@@ -5,6 +5,7 @@
 package rpcmq
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -21,6 +22,10 @@ type Client struct {
 	queueReplies amqp.Queue
 	deliveries   <-chan amqp.Delivery
 	results      chan Result
+
+	// TLSConfig allows to configure the TLS parameters used to connect to
+	// the broker via amqps
+	TLSConfig *tls.Config
 }
 
 // A Result contains the data returned by the invoked procedure or an error
@@ -40,8 +45,6 @@ type rpcMsg struct {
 // NewClient returns a reference to a Client object. The paremeter uri is the
 // network address of the broker and queue is the name of queue that will be
 // created to exchange the messages between clients and servers.
-//
-// It is important to note that it needs to be initialized before being used.
 func NewClient(uri, queue string) *Client {
 	c := &Client{
 		queueName: queue,
@@ -54,6 +57,7 @@ func NewClient(uri, queue string) *Client {
 // Init initializes the Client object. It establishes the connection with the
 // broker, creating a channel and the queues that will be used under the hood.
 func (c *Client) Init() error {
+	c.ac.tlsConfig = c.TLSConfig
 	if err := c.ac.init(); err != nil {
 		return err
 	}
@@ -135,7 +139,7 @@ func (c *Client) Shutdown() error {
 // the parameter data the input passed to it. On the other hand, ttl is the
 // time that this task will remain in the queue before being considered dead.
 // The returned id can be used to identify the result corresponding to each
-// invokation.
+// invokation. If ttl is 0, the message will not expire.
 func (c *Client) Call(method string, data []byte, ttl time.Duration) (id string, err error) {
 	id, err = uuid()
 	if err != nil {

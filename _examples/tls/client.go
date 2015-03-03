@@ -5,14 +5,38 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"io/ioutil"
 	"log"
+	"os"
 	"time"
 
 	"github.com/jroimartin/rpcmq"
 )
 
 func main() {
-	c := rpcmq.NewClient("amqp://localhost:5672", "rcp-queue")
+	certFile := os.Getenv("RPCMQ_CERT")
+	keyFile := os.Getenv("RPCMQ_KEY")
+	caFile := os.Getenv("RPCMQ_CA")
+
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		log.Fatalf("LoadX509KeyPair: %v", err)
+	}
+	caCert, err := ioutil.ReadFile(caFile)
+	if err != nil {
+		log.Fatalf("ReadFile: %v", err)
+	}
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      caCertPool,
+	}
+
+	c := rpcmq.NewClient("amqps://amqp_broker:5671", "rcp-queue")
+	c.TLSConfig = tlsConfig
 	if err := c.Init(); err != nil {
 		log.Fatalf("Init: %v", err)
 	}
