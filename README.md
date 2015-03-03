@@ -99,4 +99,4 @@ func main() {
 
 This code will generate the following output:
 
-![screen shot 2015-03-02 at 19 15 13](https://cloud.githubusercontent.com/assets/1223476/6447391/369199c6-c112-11e4-9961-782838e81257.png)
+![screen shot 2015-03-03 at 11 56 33](https://cloud.githubusercontent.com/assets/1223476/6461024/73a3ea1e-c19c-11e4-9e4e-a385e9246178.png)
