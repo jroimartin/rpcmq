@@ -17,6 +17,8 @@ import (
 // A Client is an RPC client, which is used to invoke remote procedures.
 type Client struct {
 	queueName    string
+	exchangeName string
+	exchangeKind string
 	ac           *amqpClient
 	queue        amqp.Queue
 	queueReplies amqp.Queue
@@ -44,12 +46,19 @@ type rpcMsg struct {
 
 // NewClient returns a reference to a Client object. The paremeter uri is the
 // network address of the broker and queue is the name of queue that will be
-// created to exchange the messages between clients and servers.
-func NewClient(uri, queue string) *Client {
+// created to exchange the messages between clients and servers. On the other
+// hand, the parameters exchange and kind determine the type of exchange that
+// will be created.
+func NewClient(uri, queue, exchange, kind string) *Client {
+	if kind == "fanout" {
+		queue = "" // in fanout mode, queue names must be unique
+	}
 	c := &Client{
-		queueName: queue,
-		ac:        newAmqpRpc(uri),
-		results:   make(chan Result),
+		queueName:    queue,
+		exchangeName: exchange,
+		exchangeKind: kind,
+		ac:           newAmqpRpc(uri),
+		results:      make(chan Result),
 	}
 	return c
 }
@@ -63,17 +72,44 @@ func (c *Client) Init() error {
 	}
 
 	var err error
-	c.queue, err = c.ac.channel.QueueDeclare(
-		c.queueName, // name
-		true,        // durable
-		false,       // autoDelete
-		false,       // exclusive
-		false,       // noWait
-		nil,         // args
+	err = c.ac.channel.ExchangeDeclare(
+		c.exchangeName, // name
+		c.exchangeKind, // kind
+		true,           // durable
+		false,          // autoDelete
+		false,          // internal
+		false,          // noWait
+		nil,            // args
 	)
 	if err != nil {
-		return fmt.Errorf("Queue Declare: %v", err)
+		return fmt.Errorf("ExchangeDeclare: %v", err)
 	}
+
+	if c.queueName != "" { // we create the queue only in non-fanout mode
+		c.queue, err = c.ac.channel.QueueDeclare(
+			c.queueName, // name
+			true,        // durable
+			false,       // autoDelete
+			false,       // exclusive
+			false,       // noWait
+			nil,         // args
+		)
+		if err != nil {
+			return fmt.Errorf("QueueDeclare: %v", err)
+		}
+
+		err = c.ac.channel.QueueBind(
+			c.queue.Name,   // name
+			c.queue.Name,   // key
+			c.exchangeName, // exchange
+			false,          // noWait
+			nil,            // args
+		)
+		if err != nil {
+			return fmt.Errorf("QueueBind: %v", err)
+		}
+	}
+
 	c.queueReplies, err = c.ac.channel.QueueDeclare(
 		"",    // name
 		true,  // durable
@@ -83,7 +119,7 @@ func (c *Client) Init() error {
 		nil,   // args
 	)
 	if err != nil {
-		return fmt.Errorf("Queue Declare: %v", err)
+		return fmt.Errorf("QueueDeclare: %v", err)
 	}
 
 	c.ac.consumerTag, err = uuid()
@@ -160,10 +196,10 @@ func (c *Client) Call(method string, data []byte, ttl time.Duration) (id string,
 		expiration = fmt.Sprintf("%d", int64(ttl.Seconds()*1000))
 	}
 	err = c.ac.channel.Publish(
-		"",          // exchange
-		c.queueName, // key
-		true,        // mandatory
-		false,       // immediate
+		c.exchangeName, // exchange
+		c.queueName,    // key
+		true,           // mandatory
+		false,          // immediate
 		amqp.Publishing{ // msg
 			CorrelationId: id,
 			ReplyTo:       c.queueReplies.Name,

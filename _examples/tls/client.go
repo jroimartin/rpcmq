@@ -35,7 +35,8 @@ func main() {
 		RootCAs:      caCertPool,
 	}
 
-	c := rpcmq.NewClient("amqps://amqp_broker:5671", "rcp-queue")
+	c := rpcmq.NewClient("amqps://amqp_broker:5671", "rcp-queue",
+		"rpc-exchange", "direct")
 	c.TLSConfig = tlsConfig
 	if err := c.Init(); err != nil {
 		log.Fatalf("Init: %v", err)

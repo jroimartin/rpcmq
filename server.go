@@ -22,10 +22,12 @@ type Function func(data []byte) ([]byte, error)
 // A Server is an RPC sever, which is used to register the methods than can be
 // invoked remotely.
 type Server struct {
-	queueName string
-	ac        *amqpClient
-	queue     amqp.Queue
-	methods   map[string]Function
+	queueName    string
+	exchangeName string
+	exchangeKind string
+	ac           *amqpClient
+	queue        amqp.Queue
+	methods      map[string]Function
 
 	wg              sync.WaitGroup
 	parallelMethods chan bool
@@ -42,13 +44,20 @@ type Server struct {
 
 // NewServer returns a reference to a Server object. The paremeter uri is the
 // network address of the broker and queue is the name of queue that will be
-// created to exchange the messages between clients and servers.
-func NewServer(uri, queue string) *Server {
+// created to exchange the messages between clients and servers. On the other
+// hand, the parameters exchange and kind determine the type of exchange that
+// will be created.
+func NewServer(uri, queue, exchange, kind string) *Server {
+	if kind == "fanout" {
+		queue = "" // in fanout mode, queue names must be unique
+	}
 	s := &Server{
-		queueName: queue,
-		methods:   make(map[string]Function),
-		ac:        newAmqpRpc(uri),
-		Parallel:  4,
+		queueName:    queue,
+		exchangeName: exchange,
+		exchangeKind: kind,
+		methods:      make(map[string]Function),
+		ac:           newAmqpRpc(uri),
+		Parallel:     4,
 	}
 	return s
 }
@@ -64,6 +73,19 @@ func (s *Server) Init() error {
 	s.parallelMethods = make(chan bool, s.Parallel)
 
 	var err error
+	err = s.ac.channel.ExchangeDeclare(
+		s.exchangeName, // name
+		s.exchangeKind, // kind
+		true,           // durable
+		false,          // autoDelete
+		false,          // internal
+		false,          // noWait
+		nil,            // args
+	)
+	if err != nil {
+		return fmt.Errorf("ExchangeDeclare: %v", err)
+	}
+
 	s.queue, err = s.ac.channel.QueueDeclare(
 		s.queueName, // name
 		true,        // durable
@@ -73,7 +95,18 @@ func (s *Server) Init() error {
 		nil,         // args
 	)
 	if err != nil {
-		return fmt.Errorf("Queue Declare: %v", err)
+		return fmt.Errorf("QueueDeclare: %v", err)
+	}
+
+	err = s.ac.channel.QueueBind(
+		s.queue.Name,   // name
+		s.queue.Name,   // key
+		s.exchangeName, // exchange
+		false,          // noWait
+		nil,            // args
+	)
+	if err != nil {
+		return fmt.Errorf("QueueBind: %v", err)
 	}
 
 	s.ac.consumerTag, err = uuid()
@@ -82,7 +115,7 @@ func (s *Server) Init() error {
 	}
 
 	s.deliveries, err = s.ac.channel.Consume(
-		s.queueName,      // name
+		s.queue.Name,     // name
 		s.ac.consumerTag, // consumer
 		false,            // autoAck
 		false,            // exclusive
@@ -91,7 +124,7 @@ func (s *Server) Init() error {
 		nil,              // args
 	)
 	if err != nil {
-		return fmt.Errorf("Queue Consume: %v", err)
+		return fmt.Errorf("QueueConsume: %v", err)
 	}
 
 	go s.getDeliveries()
