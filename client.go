@@ -48,7 +48,8 @@ type rpcMsg struct {
 // network address of the broker and queue is the name of queue that will be
 // created to exchange the messages between clients and servers. On the other
 // hand, the parameters exchange and kind determine the type of exchange that
-// will be created.
+// will be created. In fanout mode the queue name is ignored, so each queue
+// has its own unique id.
 func NewClient(uri, queue, exchange, kind string) *Client {
 	if kind == "fanout" {
 		queue = "" // in fanout mode, queue names must be unique
@@ -85,7 +86,7 @@ func (c *Client) Init() error {
 		return fmt.Errorf("ExchangeDeclare: %v", err)
 	}
 
-	if c.queueName != "" { // we create the queue only in non-fanout mode
+	if c.exchangeKind != "fanout" { // we declare the rpc queue only in non-fanout mode
 		c.queue, err = c.ac.channel.QueueDeclare(
 			c.queueName, // name
 			true,        // durable

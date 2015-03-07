@@ -46,7 +46,8 @@ type Server struct {
 // network address of the broker and queue is the name of queue that will be
 // created to exchange the messages between clients and servers. On the other
 // hand, the parameters exchange and kind determine the type of exchange that
-// will be created.
+// will be created. In fanout mode the queue name is ignored, so each queue
+// has its own unique id.
 func NewServer(uri, queue, exchange, kind string) *Server {
 	if kind == "fanout" {
 		queue = "" // in fanout mode, queue names must be unique
