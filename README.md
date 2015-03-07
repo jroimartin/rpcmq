@@ -34,7 +34,8 @@ import (
 )
 
 func main() {
-	s := rpcmq.NewServer("amqp://amqp_broker:5672", "rcp-queue")
+	s := rpcmq.NewServer("amqp://amqp_broker:5672", "rcp-queue",
+		"rpc-exchange", "direct")
 	if err := s.Init(); err != nil {
 		log.Fatalf("Init: %v", err)
 	}
@@ -66,7 +67,8 @@ import (
 )
 
 func main() {
-	c := rpcmq.NewClient("amqp://amqp_broker:5672", "rcp-queue")
+	c := rpcmq.NewClient("amqp://amqp_broker:5672", "rcp-queue",
+		"rpc-exchange", "direct")
 	if err := c.Init(); err != nil {
 		log.Fatalf("Init: %v", err)
 	}
