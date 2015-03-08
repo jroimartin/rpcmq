@@ -50,7 +50,7 @@ type Server struct {
 // has its own unique id.
 func NewServer(uri, queue, exchange, kind string) *Server {
 	if kind == "fanout" {
-		queue = "" // in fanout mode, queue names must be unique
+		queue = "" // in fanout mode queue names must be unique
 	}
 	s := &Server{
 		queueName:    queue,
@@ -87,10 +87,17 @@ func (s *Server) Init() error {
 		return fmt.Errorf("ExchangeDeclare: %v", err)
 	}
 
+	durable, autoDelete := true, false
+	if s.exchangeKind == "fanout" {
+		// In fanout mode the queue must be deleted on server restart
+		// or when no consumer is using it
+		durable = false
+		autoDelete = true
+	}
 	s.queue, err = s.ac.channel.QueueDeclare(
 		s.queueName, // name
-		true,        // durable
-		false,       // autoDelete
+		durable,     // durable
+		autoDelete,  // autoDelete
 		false,       // exclusive
 		false,       // noWait
 		nil,         // args

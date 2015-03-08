@@ -52,7 +52,7 @@ type rpcMsg struct {
 // has its own unique id.
 func NewClient(uri, queue, exchange, kind string) *Client {
 	if kind == "fanout" {
-		queue = "" // in fanout mode, queue names must be unique
+		queue = "" // in fanout mode queue names must be unique
 	}
 	c := &Client{
 		queueName:    queue,
@@ -86,7 +86,8 @@ func (c *Client) Init() error {
 		return fmt.Errorf("ExchangeDeclare: %v", err)
 	}
 
-	if c.exchangeKind != "fanout" { // we declare the rpc queue only in non-fanout mode
+	if c.exchangeKind != "fanout" {
+		// We should create the queue only in non-fanout mode
 		c.queue, err = c.ac.channel.QueueDeclare(
 			c.queueName, // name
 			true,        // durable
@@ -196,10 +197,16 @@ func (c *Client) Call(method string, data []byte, ttl time.Duration) (id string,
 	if ttl > 0 {
 		expiration = fmt.Sprintf("%d", int64(ttl.Seconds()*1000))
 	}
+	mandatory := true
+	if c.exchangeKind == "fanout" {
+		// In fanout mode the routing key is not really used, so using
+		// the mandatory flag does not make sense
+		mandatory = false
+	}
 	err = c.ac.channel.Publish(
 		c.exchangeName, // exchange
 		c.queueName,    // key
-		true,           // mandatory
+		mandatory,      // mandatory
 		false,          // immediate
 		amqp.Publishing{ // msg
 			CorrelationId: id,
