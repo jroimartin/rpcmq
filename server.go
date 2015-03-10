@@ -16,9 +16,9 @@ import (
 )
 
 // The type Function declares the signature of the methods that can be
-// registered by an RPC server. The task parameter contains the uuid of
+// registered by an RPC server. The id parameter contains the uuid of
 // the task being executed.
-type Function func(task string, data []byte) ([]byte, error)
+type Function func(id string, data []byte) ([]byte, error)
 
 // A Server is an RPC sever, which is used to register the methods than can be
 // invoked remotely.
