@@ -212,7 +212,8 @@ func (s *Server) handleDelivery(d amqp.Delivery) {
 }
 
 // Register registers a method with the name given by the parameter method and
-// links the function f to it.
+// links the function f to it. Register should be called before Init() to avoid
+// dropping messages due to "not registered method" errors.
 func (s *Server) Register(method string, f Function) error {
 	if _, exists := s.methods[method]; exists {
 		return errors.New("Duplicate method name")

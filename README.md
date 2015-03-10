@@ -36,14 +36,13 @@ import (
 func main() {
 	s := rpcmq.NewServer("amqp://amqp_broker:5672", "rcp-queue",
 		"rpc-exchange", "direct")
+	if err := s.Register("toUpper", toUpper); err != nil {
+		log.Fatalf("Register: %v", err)
+	}
 	if err := s.Init(); err != nil {
 		log.Fatalf("Init: %v", err)
 	}
 	defer s.Shutdown()
-
-	if err := s.Register("toUpper", toUpper); err != nil {
-		log.Fatalf("Register: %v", err)
-	}
 
 	<-time.After(10 * time.Second)
 }

@@ -39,14 +39,13 @@ func main() {
 	s := rpcmq.NewServer("amqps://amqp_broker:5671", "rcp-queue",
 		"rpc-exchange", "direct")
 	s.TLSConfig = tlsConfig
+	if err := s.Register("toUpper", toUpper); err != nil {
+		log.Fatalf("Register: %v", err)
+	}
 	if err := s.Init(); err != nil {
 		log.Fatalf("Init: %v", err)
 	}
 	defer s.Shutdown()
-
-	if err := s.Register("toUpper", toUpper); err != nil {
-		log.Fatalf("Register: %v", err)
-	}
 
 	<-time.After(10 * time.Second)
 }
