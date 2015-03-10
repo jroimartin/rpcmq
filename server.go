@@ -16,8 +16,9 @@ import (
 )
 
 // The type Function declares the signature of the methods that can be
-// registered by an RPC server.
-type Function func(data []byte) ([]byte, error)
+// registered by an RPC server. The task parameter contains the uuid of
+// the task being executed.
+type Function func(task string, data []byte) ([]byte, error)
 
 // A Server is an RPC sever, which is used to register the methods than can be
 // invoked remotely.
@@ -170,7 +171,7 @@ func (s *Server) handleDelivery(d amqp.Delivery) {
 	if err = json.Unmarshal(d.Body, &msg); err == nil {
 		f, ok := s.methods[msg.Method]
 		if ok {
-			ret, err = f(msg.Data)
+			ret, err = f(d.CorrelationId, msg.Data)
 		} else {
 			err = errors.New("method has not been registered")
 		}

@@ -27,7 +27,7 @@ func main() {
 	<-time.After(10 * time.Second)
 }
 
-func toUpper(data []byte) ([]byte, error) {
-	log.Printf("Received: toUpper(%v)\n", string(data))
+func toUpper(task string, data []byte) ([]byte, error) {
+	log.Printf("Received (%v): toUpper(%v)\n", task, string(data))
 	return []byte(strings.ToUpper(string(data))), nil
 }
