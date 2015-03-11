@@ -72,9 +72,19 @@ func (s *Server) Init() error {
 		return err
 	}
 
+	var err error
+
+	// Limit the number of reserved messages
+	err = s.ac.channel.Qos(
+		s.Parallel, // prefetchCount
+		0,          // prefetchSize
+		false,      // global
+	)
+	if err != nil {
+		return fmt.Errorf("Quos: %v", err)
+	}
 	s.parallelMethods = make(chan bool, s.Parallel)
 
-	var err error
 	err = s.ac.channel.ExchangeDeclare(
 		s.exchangeName, // name
 		s.exchangeKind, // kind
