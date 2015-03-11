@@ -81,7 +81,7 @@ func (s *Server) Init() error {
 		false,      // global
 	)
 	if err != nil {
-		return fmt.Errorf("Quos: %v", err)
+		return fmt.Errorf("Qos: %v", err)
 	}
 	s.parallelMethods = make(chan bool, s.Parallel)
 
