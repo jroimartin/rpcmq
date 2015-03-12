@@ -28,6 +28,10 @@ type Client struct {
 	// TLSConfig allows to configure the TLS parameters used to connect to
 	// the broker via amqps
 	TLSConfig *tls.Config
+
+	// Log is the logger used to register warnings and info messages. If it
+	// is nil, no messages will be logged.
+	Log *log.Logger
 }
 
 // A Result contains the data returned by the invoked procedure or an error
@@ -151,13 +155,13 @@ func (c *Client) getDeliveries() {
 	for d := range c.deliveries {
 		if d.CorrelationId == "" {
 			d.Nack(false, false) // drop message
-			log.Printf("dropped message: %+v\n", d)
+			c.logf("dropped message: %+v", d)
 			continue
 		}
 		var r Result
 		if err := json.Unmarshal(d.Body, &r); err != nil {
 			d.Nack(false, false) // drop message
-			log.Printf("dropped message: %+v\n", d)
+			c.logf("dropped message: %+v", d)
 			continue
 		}
 		c.results <- r
@@ -228,4 +232,11 @@ func (c *Client) Call(method string, data []byte, ttl time.Duration) (id string,
 // invoked procedures.
 func (c *Client) Results() <-chan Result {
 	return (<-chan Result)(c.results)
+}
+
+func (c *Client) logf(format string, args ...interface{}) {
+	if c.Log == nil {
+		return
+	}
+	c.Log.Printf(format, args...)
 }

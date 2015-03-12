@@ -41,6 +41,10 @@ type Server struct {
 	// TLSConfig allows to configure the TLS parameters used to connect to
 	// the broker via amqps
 	TLSConfig *tls.Config
+
+	// Log is the logger used to register warnings and info messages. If it
+	// is nil, no messages will be logged.
+	Log *log.Logger
 }
 
 // NewServer returns a reference to a Server object. The paremeter uri is the
@@ -169,7 +173,7 @@ func (s *Server) handleDelivery(d amqp.Delivery) {
 
 	if d.CorrelationId == "" || d.ReplyTo == "" {
 		d.Nack(false, false) // drop message
-		log.Printf("dropped message: %+v\n", d)
+		s.logf("dropped message: %+v", d)
 		return
 	}
 
@@ -201,7 +205,7 @@ func (s *Server) handleDelivery(d amqp.Delivery) {
 	body, err := json.Marshal(result)
 	if err != nil {
 		d.Nack(false, true) // requeue message
-		log.Printf("requeued message: %+v\n", d)
+		s.logf("requeued message: %+v", d)
 		return
 	}
 
@@ -237,4 +241,11 @@ func (s *Server) Register(method string, f Function) error {
 // the latter.
 func (s *Server) Shutdown() error {
 	return s.ac.shutdown()
+}
+
+func (s *Server) logf(format string, args ...interface{}) {
+	if s.Log == nil {
+		return
+	}
+	s.Log.Printf(format, args...)
 }
