@@ -25,9 +25,8 @@ type amqpClient struct {
 
 func newAmqpRpc(uri string) *amqpClient {
 	r := &amqpClient{
-		returns: make(chan amqp.Return),
-		done:    make(chan bool),
-		uri:     uri,
+		uri:  uri,
+		done: make(chan bool),
 	}
 	return r
 }
@@ -44,6 +43,7 @@ func (r *amqpClient) init() error {
 		return fmt.Errorf("Channel: %v", err)
 	}
 
+	r.returns = make(chan amqp.Return) // closed by Channel.NotifyReturn
 	go r.trackErrors()
 
 	return nil
@@ -60,11 +60,14 @@ func (r *amqpClient) trackErrors() {
 func (r *amqpClient) shutdown() error {
 	if r.consumerTag != "" {
 		if err := r.channel.Cancel(r.consumerTag, false); err != nil {
-			return fmt.Errorf("Channel Close: %v", err)
+			return fmt.Errorf("Channel Cancel: %v", err)
 		}
 	}
 	<-r.done
 
+	if err := r.channel.Close(); err != nil {
+		return fmt.Errorf("Channel Close: %v", err)
+	}
 	if err := r.conn.Close(); err != nil {
 		return fmt.Errorf("Connection Close: %v", err)
 	}

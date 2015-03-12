@@ -61,8 +61,8 @@ func NewServer(uri, queue, exchange, kind string) *Server {
 		queueName:    queue,
 		exchangeName: exchange,
 		exchangeKind: kind,
-		methods:      make(map[string]Function),
 		ac:           newAmqpRpc(uri),
+		methods:      make(map[string]Function),
 		Parallel:     4,
 	}
 	return s
