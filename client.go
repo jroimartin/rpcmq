@@ -7,8 +7,8 @@ package rpcmq
 import (
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/streadway/amqp"
@@ -16,22 +16,20 @@ import (
 
 // A Client is an RPC client, which is used to invoke remote procedures.
 type Client struct {
-	queueName    string
+	msgsName     string
+	repliesName  string
 	exchangeName string
 	exchangeKind string
 	ac           *amqpClient
-	queue        amqp.Queue
-	queueReplies amqp.Queue
+	msgsQueue    amqp.Queue
+	repliesQueue amqp.Queue
+	mandatory    bool
 	deliveries   <-chan amqp.Delivery
 	results      chan Result
 
 	// TLSConfig allows to configure the TLS parameters used to connect to
 	// the broker via amqps
 	TLSConfig *tls.Config
-
-	// Log is the logger used to register warnings and info messages. If it
-	// is nil, no messages will be logged.
-	Log *log.Logger
 }
 
 // A Result contains the data returned by the invoked procedure or an error
@@ -49,22 +47,24 @@ type rpcMsg struct {
 }
 
 // NewClient returns a reference to a Client object. The paremeter uri is the
-// network address of the broker and queue is the name of queue that will be
-// created to exchange the messages between clients and servers. On the other
-// hand, the parameters exchange and kind determine the type of exchange that
-// will be created. In fanout mode the queue name is ignored, so each queue
-// has its own unique id.
-func NewClient(uri, queue, exchange, kind string) *Client {
+// network address of the broker and msgsQueue/repliesQueue are the names of
+// queues that will be created to exchange the messages between clients and
+// servers. On the other hand, the parameters exchange and kind determine the
+// type of exchange that will be created. In fanout mode the queue name is
+// ignored, so each queue has its own unique id.
+func NewClient(uri, msgsQueue, repliesQueue, exchange, kind string) *Client {
 	if kind == "fanout" {
-		queue = "" // in fanout mode queue names must be unique
+		msgsQueue = "" // in fanout mode queue names must be unique
 	}
 	c := &Client{
-		queueName:    queue,
+		msgsName:     msgsQueue,
+		repliesName:  repliesQueue,
 		exchangeName: exchange,
 		exchangeKind: kind,
-		ac:           newAmqpRpc(uri),
+		ac:           newAmqpClient(uri),
 		results:      make(chan Result),
 	}
+	c.ac.setupFunc = c.setup
 	return c
 }
 
@@ -75,9 +75,11 @@ func (c *Client) Init() error {
 	if err := c.ac.init(); err != nil {
 		return err
 	}
+	return c.setup()
+}
 
-	var err error
-	err = c.ac.channel.ExchangeDeclare(
+func (c *Client) setup() error {
+	err := c.ac.channel.ExchangeDeclare(
 		c.exchangeName, // name
 		c.exchangeKind, // kind
 		true,           // durable
@@ -92,37 +94,37 @@ func (c *Client) Init() error {
 
 	if c.exchangeKind != "fanout" {
 		// We should create the queue only in non-fanout mode
-		c.queue, err = c.ac.channel.QueueDeclare(
-			c.queueName, // name
-			true,        // durable
-			false,       // autoDelete
-			false,       // exclusive
-			false,       // noWait
-			nil,         // args
+		c.msgsQueue, err = c.ac.channel.QueueDeclare(
+			c.msgsName, // name
+			true,       // durable
+			false,      // autoDelete
+			false,      // exclusive
+			false,      // noWait
+			nil,        // args
 		)
 		if err != nil {
 			return fmt.Errorf("QueueDeclare: %v", err)
 		}
 
 		err = c.ac.channel.QueueBind(
-			c.queue.Name,   // name
-			c.queue.Name,   // key
-			c.exchangeName, // exchange
-			false,          // noWait
-			nil,            // args
+			c.msgsQueue.Name, // name
+			c.msgsQueue.Name, // key
+			c.exchangeName,   // exchange
+			false,            // noWait
+			nil,              // args
 		)
 		if err != nil {
 			return fmt.Errorf("QueueBind: %v", err)
 		}
 	}
 
-	c.queueReplies, err = c.ac.channel.QueueDeclare(
-		"",    // name
-		true,  // durable
-		false, // autoDelete
-		true,  // exclusive
-		false, // noWait
-		nil,   // args
+	c.repliesQueue, err = c.ac.channel.QueueDeclare(
+		c.repliesName, // name
+		true,          // durable
+		false,         // autoDelete
+		false,         // exclusive
+		false,         // noWait
+		nil,           // args
 	)
 	if err != nil {
 		return fmt.Errorf("QueueDeclare: %v", err)
@@ -134,7 +136,7 @@ func (c *Client) Init() error {
 	}
 
 	c.deliveries, err = c.ac.channel.Consume(
-		c.queueReplies.Name, // name
+		c.repliesQueue.Name, // name
 		c.ac.consumerTag,    // consumer
 		false,               // autoAck
 		false,               // exclusive
@@ -155,13 +157,13 @@ func (c *Client) getDeliveries() {
 	for d := range c.deliveries {
 		if d.CorrelationId == "" {
 			d.Nack(false, false) // drop message
-			c.logf("dropped message: %+v", d)
+			logf("dropped message: %+v", d)
 			continue
 		}
 		var r Result
 		if err := json.Unmarshal(d.Body, &r); err != nil {
 			d.Nack(false, false) // drop message
-			c.logf("dropped message: %+v", d)
+			logf("dropped message: %+v", d)
 			continue
 		}
 		c.results <- r
@@ -173,8 +175,8 @@ func (c *Client) getDeliveries() {
 // Shutdown shuts down the client gracefully. Using this method will ensure
 // that all replies sent by the RPC servers to the client will be received by
 // the latter.
-func (c *Client) Shutdown() error {
-	return c.ac.shutdown()
+func (c *Client) Shutdown() {
+	c.ac.shutdown()
 }
 
 // Call invokes the remote procedure specified by the parameter method, being
@@ -201,20 +203,25 @@ func (c *Client) Call(method string, data []byte, ttl time.Duration) (id string,
 	if ttl > 0 {
 		expiration = fmt.Sprintf("%d", int64(ttl.Seconds()*1000))
 	}
-	mandatory := true
+	c.mandatory = true
 	if c.exchangeKind == "fanout" {
 		// In fanout mode the routing key is not really used, so using
 		// the mandatory flag does not make sense
-		mandatory = false
+		c.mandatory = false
 	}
+
+	// guarantee that the received ack/nack corresponds with this publishing
+	c.ac.mu.Lock()
+	defer c.ac.mu.Unlock()
+
 	err = c.ac.channel.Publish(
 		c.exchangeName, // exchange
-		c.queueName,    // key
-		mandatory,      // mandatory
+		c.msgsName,     // key
+		c.mandatory,    // mandatory
 		false,          // immediate
 		amqp.Publishing{ // msg
 			CorrelationId: id,
-			ReplyTo:       c.queueReplies.Name,
+			ReplyTo:       c.repliesQueue.Name,
 			ContentType:   "application/json",
 			Body:          body,
 			DeliveryMode:  amqp.Persistent,
@@ -225,18 +232,28 @@ func (c *Client) Call(method string, data []byte, ttl time.Duration) (id string,
 		return "", err
 	}
 
-	return id, nil
+	select {
+	case _, ok := <-c.ac.acks:
+		if ok {
+			return id, nil
+		} else {
+			break
+		}
+	case tag, ok := <-c.ac.nacks:
+		if ok {
+			logf("nack recived (%v)", tag)
+			return "", errors.New("nack received")
+		} else {
+			break
+		}
+	}
+
+	logf("missing ack/nack")
+	return "", errors.New("missing ack/nack")
 }
 
 // Results returns a channel used to receive the results returned by the
 // invoked procedures.
 func (c *Client) Results() <-chan Result {
 	return (<-chan Result)(c.results)
-}
-
-func (c *Client) logf(format string, args ...interface{}) {
-	if c.Log == nil {
-		return
-	}
-	c.Log.Printf(format, args...)
 }

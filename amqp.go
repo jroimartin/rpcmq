@@ -7,9 +7,20 @@ package rpcmq
 import (
 	"crypto/tls"
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/streadway/amqp"
 )
+
+// RetrySleep is the time between retries if the connection with the broker
+// is lost. The default value is 2 seconds.
+var RetrySleep time.Duration = 2 * time.Second
+
+type publishing struct {
+	msg       amqp.Publishing
+	timestamp time.Time
+}
 
 type amqpClient struct {
 	uri         string
@@ -17,60 +28,95 @@ type amqpClient struct {
 
 	conn    *amqp.Connection
 	channel *amqp.Channel
-	returns chan amqp.Return
 	done    chan bool
+
+	// The mutex protects the acks/nacks channels from being used
+	// simultaneously by multiple publishing processes
+	mu          sync.Mutex
+	acks, nacks chan uint64
+
+	setupFunc func() error
 
 	tlsConfig *tls.Config
 }
 
-func newAmqpRpc(uri string) *amqpClient {
-	r := &amqpClient{
+func newAmqpClient(uri string) *amqpClient {
+	ac := &amqpClient{
 		uri:  uri,
 		done: make(chan bool),
 	}
-	return r
+	return ac
 }
 
-func (r *amqpClient) init() error {
+func (ac *amqpClient) init() error {
 	var err error
-	r.conn, err = amqp.DialTLS(r.uri, r.tlsConfig)
+	ac.conn, err = amqp.DialTLS(ac.uri, ac.tlsConfig)
 	if err != nil {
 		return fmt.Errorf("DialTLS: %v", err)
 	}
 
-	r.channel, err = r.conn.Channel()
+	ac.channel, err = ac.conn.Channel()
 	if err != nil {
 		return fmt.Errorf("Channel: %v", err)
 	}
+	if err := ac.channel.Confirm(false); err != nil {
+		return fmt.Errorf("Confirm: %v", err)
+	}
+	ac.acks, ac.nacks = ac.channel.NotifyConfirm(make(chan uint64), make(chan uint64))
 
-	r.returns = make(chan amqp.Return) // closed by Channel.NotifyReturn
-	go r.trackErrors()
+	go ac.handleMsgs()
 
 	return nil
 }
 
-func (r *amqpClient) trackErrors() {
-	for ret := range r.channel.NotifyReturn(r.returns) {
-		if ret.ReplyCode == amqp.NoRoute {
-			panic("no route")
+func (ac *amqpClient) handleMsgs() {
+	returns := ac.channel.NotifyReturn(make(chan amqp.Return))
+	errors := ac.channel.NotifyClose(make(chan *amqp.Error))
+
+	for {
+		select {
+		case ret, ok := <-returns:
+			if !ok {
+				break
+			}
+			if ret.ReplyCode == amqp.NoRoute {
+				panic("no route")
+			}
+		case _, ok := <-errors:
+			if !ok {
+				break
+			}
+			logf("shutdown")
+			ac.shutdown()
+			for {
+				logf("retrying")
+				if err := ac.init(); err != nil {
+					logf("amqpClient init: %v", err)
+					time.Sleep(RetrySleep)
+					continue
+				}
+
+				if err := ac.setupFunc(); err != nil {
+					panic(fmt.Errorf("setup: %v", err))
+				}
+				logf("connected")
+				return
+			}
 		}
 	}
 }
 
-func (r *amqpClient) shutdown() error {
-	if r.consumerTag != "" {
-		if err := r.channel.Cancel(r.consumerTag, false); err != nil {
-			return fmt.Errorf("Channel Cancel: %v", err)
+func (ac *amqpClient) shutdown() {
+	if ac.consumerTag != "" {
+		if err := ac.channel.Cancel(ac.consumerTag, false); err != nil {
+			logf("Channel Cancel: %v", err)
 		}
 	}
-	<-r.done
-
-	if err := r.channel.Close(); err != nil {
-		return fmt.Errorf("Channel Close: %v", err)
+	<-ac.done
+	if err := ac.channel.Close(); err != nil {
+		logf("Channel Close: %v", err)
 	}
-	if err := r.conn.Close(); err != nil {
-		return fmt.Errorf("Connection Close: %v", err)
+	if err := ac.conn.Close(); err != nil {
+		logf("Connection Close: %v", err)
 	}
-
-	return nil
 }

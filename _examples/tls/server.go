@@ -36,8 +36,8 @@ func main() {
 		RootCAs:      caCertPool,
 	}
 
-	s := rpcmq.NewServer("amqps://amqp_broker:5671", "rcp-queue",
-		"rpc-exchange", "direct")
+	s := rpcmq.NewServer("amqps://amqp_broker:5671",
+		"rcp-queue", "rpc-exchange", "direct")
 	s.TLSConfig = tlsConfig
 	if err := s.Register("toUpper", toUpper); err != nil {
 		log.Fatalf("Register: %v", err)
@@ -47,7 +47,7 @@ func main() {
 	}
 	defer s.Shutdown()
 
-	<-time.After(10 * time.Second)
+	time.Sleep(1 * time.Minute)
 }
 
 func toUpper(id string, data []byte) ([]byte, error) {

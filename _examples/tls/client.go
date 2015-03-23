@@ -35,8 +35,8 @@ func main() {
 		RootCAs:      caCertPool,
 	}
 
-	c := rpcmq.NewClient("amqps://amqp_broker:5671", "rcp-queue",
-		"rpc-exchange", "direct")
+	c := rpcmq.NewClient("amqps://amqp_broker:5671",
+		"rcp-queue", "rpc-client", "rpc-exchange", "direct")
 	c.TLSConfig = tlsConfig
 	if err := c.Init(); err != nil {
 		log.Fatalf("Init: %v", err)
@@ -51,7 +51,7 @@ func main() {
 				log.Println("Call:", err)
 			}
 			log.Printf("Sent: toUpper(%v) (%v)\n", string(data), uuid)
-			<-time.After(500 * time.Millisecond)
+			time.Sleep(500 * time.Millisecond)
 		}
 	}()
 
@@ -65,5 +65,5 @@ func main() {
 		}
 	}()
 
-	<-time.After(10 * time.Second)
+	time.Sleep(1 * time.Minute)
 }

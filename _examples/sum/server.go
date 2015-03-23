@@ -6,16 +6,17 @@ package main
 
 import (
 	"log"
-	"strings"
-	"time"
+	"os"
 
 	"github.com/jroimartin/rpcmq"
 )
 
 func main() {
+	rpcmq.Log = log.New(os.Stderr, "server ", log.LstdFlags)
+
 	s := rpcmq.NewServer("amqp://amqp_broker:5672",
-		"rcp-queue", "rpc-exchange", "fanout")
-	if err := s.Register("toUpper", toUpper); err != nil {
+		"rcp-queue", "rpc-exchange", "direct")
+	if err := s.Register("echo", echo); err != nil {
 		log.Fatalf("Register: %v", err)
 	}
 	if err := s.Init(); err != nil {
@@ -23,10 +24,10 @@ func main() {
 	}
 	defer s.Shutdown()
 
-	<-time.After(10 * time.Second)
+	select {}
 }
 
-func toUpper(id string, data []byte) ([]byte, error) {
-	log.Printf("Received (%v): toUpper(%v)\n", id, string(data))
-	return []byte(strings.ToUpper(string(data))), nil
+func echo(id string, data []byte) ([]byte, error) {
+	log.Printf("Received (%v): echo(%v)\n", id, string(data))
+	return data, nil
 }

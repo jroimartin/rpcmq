@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/streadway/amqp"
@@ -23,11 +22,11 @@ type Function func(id string, data []byte) ([]byte, error)
 // A Server is an RPC sever, which is used to register the methods than can be
 // invoked remotely.
 type Server struct {
-	queueName    string
+	msgsName     string
 	exchangeName string
 	exchangeKind string
 	ac           *amqpClient
-	queue        amqp.Queue
+	msgsQueue    amqp.Queue
 	methods      map[string]Function
 
 	wg              sync.WaitGroup
@@ -41,30 +40,27 @@ type Server struct {
 	// TLSConfig allows to configure the TLS parameters used to connect to
 	// the broker via amqps
 	TLSConfig *tls.Config
-
-	// Log is the logger used to register warnings and info messages. If it
-	// is nil, no messages will be logged.
-	Log *log.Logger
 }
 
 // NewServer returns a reference to a Server object. The paremeter uri is the
-// network address of the broker and queue is the name of queue that will be
-// created to exchange the messages between clients and servers. On the other
-// hand, the parameters exchange and kind determine the type of exchange that
-// will be created. In fanout mode the queue name is ignored, so each queue
-// has its own unique id.
-func NewServer(uri, queue, exchange, kind string) *Server {
+// network address of the broker and msgsQueue is the name of queue that will
+// be created to exchange the messages between clients and servers. On the
+// other hand, the parameters exchange and kind determine the type of exchange
+// that will be created. In fanout mode the queue name is ignored, so each
+// queue has its own unique id.
+func NewServer(uri, msgsQueue, exchange, kind string) *Server {
 	if kind == "fanout" {
-		queue = "" // in fanout mode queue names must be unique
+		msgsQueue = "" // in fanout mode queue names must be unique
 	}
 	s := &Server{
-		queueName:    queue,
+		msgsName:     msgsQueue,
 		exchangeName: exchange,
 		exchangeKind: kind,
-		ac:           newAmqpRpc(uri),
+		ac:           newAmqpClient(uri),
 		methods:      make(map[string]Function),
 		Parallel:     4,
 	}
+	s.ac.setupFunc = s.setup
 	return s
 }
 
@@ -75,11 +71,12 @@ func (s *Server) Init() error {
 	if err := s.ac.init(); err != nil {
 		return err
 	}
+	return s.setup()
+}
 
-	var err error
-
+func (s *Server) setup() error {
 	// Limit the number of reserved messages
-	err = s.ac.channel.Qos(
+	err := s.ac.channel.Qos(
 		s.Parallel, // prefetchCount
 		0,          // prefetchSize
 		false,      // global
@@ -109,24 +106,24 @@ func (s *Server) Init() error {
 		durable = false
 		autoDelete = true
 	}
-	s.queue, err = s.ac.channel.QueueDeclare(
-		s.queueName, // name
-		durable,     // durable
-		autoDelete,  // autoDelete
-		false,       // exclusive
-		false,       // noWait
-		nil,         // args
+	s.msgsQueue, err = s.ac.channel.QueueDeclare(
+		s.msgsName, // name
+		durable,    // durable
+		autoDelete, // autoDelete
+		false,      // exclusive
+		false,      // noWait
+		nil,        // args
 	)
 	if err != nil {
 		return fmt.Errorf("QueueDeclare: %v", err)
 	}
 
 	err = s.ac.channel.QueueBind(
-		s.queue.Name,   // name
-		s.queue.Name,   // key
-		s.exchangeName, // exchange
-		false,          // noWait
-		nil,            // args
+		s.msgsQueue.Name, // name
+		s.msgsQueue.Name, // key
+		s.exchangeName,   // exchange
+		false,            // noWait
+		nil,              // args
 	)
 	if err != nil {
 		return fmt.Errorf("QueueBind: %v", err)
@@ -138,7 +135,7 @@ func (s *Server) Init() error {
 	}
 
 	s.deliveries, err = s.ac.channel.Consume(
-		s.queue.Name,     // name
+		s.msgsQueue.Name, // name
 		s.ac.consumerTag, // consumer
 		false,            // autoAck
 		false,            // exclusive
@@ -173,7 +170,7 @@ func (s *Server) handleDelivery(d amqp.Delivery) {
 
 	if d.CorrelationId == "" || d.ReplyTo == "" {
 		d.Nack(false, false) // drop message
-		s.logf("dropped message: %+v", d)
+		logf("dropped message: %+v", d)
 		return
 	}
 
@@ -205,24 +202,52 @@ func (s *Server) handleDelivery(d amqp.Delivery) {
 	body, err := json.Marshal(result)
 	if err != nil {
 		d.Nack(false, true) // requeue message
-		s.logf("requeued message: %+v", d)
+		logf("requeued message: %+v", d)
 		return
 	}
 
-	s.ac.channel.Publish(
+	// guarantee that the received ack/nack corresponds with this publishing
+	s.ac.mu.Lock()
+	defer s.ac.mu.Unlock()
+
+	err = s.ac.channel.Publish(
 		"",        // exchange
 		d.ReplyTo, // key
 		false,     // mandatory
 		false,     // immediate
 		amqp.Publishing{ // msg
 			CorrelationId: d.CorrelationId,
+			ReplyTo:       d.ReplyTo,
 			ContentType:   "application/json",
 			Body:          body,
 			DeliveryMode:  amqp.Persistent,
 		},
 	)
-	d.Ack(false)
+	if err != nil {
+		d.Nack(false, true) // requeue message
+		return
+	}
 
+	select {
+	case _, ok := <-s.ac.acks:
+		if ok {
+			d.Ack(false)
+			return
+		} else {
+			break
+		}
+	case tag, ok := <-s.ac.nacks:
+		if ok {
+			logf("nack recived (%v)", tag)
+			d.Nack(false, true) // requeue message
+			return
+		} else {
+			break
+		}
+	}
+
+	logf("missing ack/nack")
+	d.Nack(false, true) // requeue message
 }
 
 // Register registers a method with the name given by the parameter method and
@@ -239,13 +264,6 @@ func (s *Server) Register(method string, f Function) error {
 // Shutdown shuts down the server gracefully. Using this method will ensure
 // that all requests sent by the RPC clients to the server will be handled by
 // the latter.
-func (s *Server) Shutdown() error {
-	return s.ac.shutdown()
-}
-
-func (s *Server) logf(format string, args ...interface{}) {
-	if s.Log == nil {
-		return
-	}
-	s.Log.Printf(format, args...)
+func (s *Server) Shutdown() {
+	s.ac.shutdown()
 }

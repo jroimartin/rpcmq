@@ -34,8 +34,8 @@ import (
 )
 
 func main() {
-	s := rpcmq.NewServer("amqp://amqp_broker:5672", "rcp-queue",
-		"rpc-exchange", "direct")
+	s := rpcmq.NewServer("amqp://amqp_broker:5672",
+		"rcp-queue", "rpc-exchange", "direct")
 	if err := s.Register("toUpper", toUpper); err != nil {
 		log.Fatalf("Register: %v", err)
 	}
@@ -44,7 +44,7 @@ func main() {
 	}
 	defer s.Shutdown()
 
-	<-time.After(10 * time.Second)
+	time.Sleep(1 * time.Minute)
 }
 
 func toUpper(data []byte) ([]byte, error) {
@@ -66,8 +66,8 @@ import (
 )
 
 func main() {
-	c := rpcmq.NewClient("amqp://amqp_broker:5672", "rcp-queue",
-		"rpc-exchange", "direct")
+	c := rpcmq.NewClient("amqp://amqp_broker:5672",
+		"rcp-queue", "rpc-client", "rpc-exchange", "direct")
 	if err := c.Init(); err != nil {
 		log.Fatalf("Init: %v", err)
 	}
@@ -81,7 +81,7 @@ func main() {
 				log.Println("Call:", err)
 			}
 			log.Printf("Sent: toUpper(%v) (%v)\n", string(data), uuid)
-			<-time.After(500 * time.Millisecond)
+			time.Sleep(500 * time.Millisecond)
 		}
 	}()
 
@@ -95,7 +95,7 @@ func main() {
 		}
 	}()
 
-	<-time.After(10 * time.Second)
+	time.Sleep(1 * time.Minute)
 }
 ```
 
