@@ -14,7 +14,7 @@ import (
 )
 
 // RetrySleep is the time between retries if the connection with the broker
-// is lost. The default value is 2 seconds.
+// is lost.
 var RetrySleep time.Duration = 2 * time.Second
 
 type publishing struct {
