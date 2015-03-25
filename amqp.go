@@ -77,14 +77,16 @@ func (ac *amqpClient) handleMsgs() {
 		select {
 		case ret, ok := <-returns:
 			if !ok {
-				break
+				logf("returns channel closed")
+				return
 			}
 			if ret.ReplyCode == amqp.NoRoute {
 				panic("no route")
 			}
 		case _, ok := <-errors:
 			if !ok {
-				break
+				logf("errors channel closed")
+				return
 			}
 			logf("shutdown")
 			ac.shutdown()

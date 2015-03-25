@@ -13,7 +13,7 @@ import (
 	"github.com/jroimartin/rpcmq"
 )
 
-const iter = 250
+const iter = 500
 
 func main() {
 	rpcmq.Log = log.New(os.Stderr, "client ", log.LstdFlags)
