@@ -236,15 +236,11 @@ func (c *Client) Call(method string, data []byte, ttl time.Duration) (id string,
 	case _, ok := <-c.ac.acks:
 		if ok {
 			return id, nil
-		} else {
-			break
 		}
 	case tag, ok := <-c.ac.nacks:
 		if ok {
 			logf("nack recived (%v)", tag)
 			return "", errors.New("nack received")
-		} else {
-			break
 		}
 	}
 

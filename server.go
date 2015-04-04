@@ -233,16 +233,12 @@ func (s *Server) handleDelivery(d amqp.Delivery) {
 		if ok {
 			d.Ack(false)
 			return
-		} else {
-			break
 		}
 	case tag, ok := <-s.ac.nacks:
 		if ok {
 			logf("nack recived (%v)", tag)
 			d.Nack(false, true) // requeue message
 			return
-		} else {
-			break
 		}
 	}
 
