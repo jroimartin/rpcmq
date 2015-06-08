@@ -60,7 +60,7 @@ func NewServer(uri, msgsQueue, exchange, kind string) *Server {
 		exchangeKind: kind,
 		ac:           newAmqpClient(uri),
 		methods:      make(map[string]Function),
-		Parallel:     runtime.GOMAXPROCS(),
+		Parallel:     runtime.NumCPU(),
 		Prefetch:     4,
 	}
 	s.ac.setupFunc = s.setup
