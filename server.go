@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 
 	"github.com/streadway/amqp"
@@ -59,7 +60,7 @@ func NewServer(uri, msgsQueue, exchange, kind string) *Server {
 		exchangeKind: kind,
 		ac:           newAmqpClient(uri),
 		methods:      make(map[string]Function),
-		Parallel:     4,
+		Parallel:     runtime.GOMAXPROCS(),
 		Prefetch:     4,
 	}
 	s.ac.setupFunc = s.setup
