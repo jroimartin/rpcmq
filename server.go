@@ -37,8 +37,10 @@ type Server struct {
 	// Parallel allows to define the number of methods to be run in
 	// parallel
 	Parallel int
+
 	// Prefetch allows to define the number of tasks to be "cached"
 	Prefetch int
+
 	// TLSConfig allows to configure the TLS parameters used to connect to
 	// the broker via amqps
 	TLSConfig *tls.Config
@@ -61,7 +63,7 @@ func NewServer(uri, msgsQueue, exchange, kind string) *Server {
 		ac:           newAmqpClient(uri),
 		methods:      make(map[string]Function),
 		Parallel:     runtime.NumCPU(),
-		Prefetch:     4,
+		Prefetch:     runtime.NumCPU(),
 	}
 	s.ac.setupFunc = s.setup
 	return s
