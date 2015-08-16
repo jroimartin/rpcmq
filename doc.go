@@ -8,8 +8,8 @@ Package rpcmq implements an RPC protocol over AMQP.
 Client/Server initialization
 
 It is important to note that both clients and servers must be initialized
-before being used. Also, any configuration parameter (e.g. TLSConfig or
-Parallel) should be set up before calling Init().
+before being used. Also, any configuration parameter (TLSConfig, Parallel and
+Prefetch) should be set up before calling Init().
 
 SSL/TLS
 
