@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/streadway/amqp"
 )
@@ -41,6 +42,9 @@ type Server struct {
 	// Prefetch allows to define the number of tasks to be "cached"
 	Prefetch int
 
+	// RateLimit allows to define a limit of calls per second
+	RateLimit time.Duration
+
 	// TLSConfig allows to configure the TLS parameters used to connect to
 	// the broker via amqps
 	TLSConfig *tls.Config
@@ -64,6 +68,7 @@ func NewServer(uri, msgsQueue, exchange, kind string) *Server {
 		methods:      make(map[string]Function),
 		Parallel:     runtime.NumCPU(),
 		Prefetch:     runtime.NumCPU(),
+		RateLimit:    0,
 	}
 	s.ac.setupFunc = s.setup
 	return s
@@ -159,9 +164,16 @@ func (s *Server) setup() error {
 
 func (s *Server) getDeliveries() {
 	for d := range s.deliveries {
+		var start time.Time
+		if s.RateLimit > 0 {
+			start = time.Now()
+		}
 		s.parallelMethods <- true
 		s.wg.Add(1)
 		go s.handleDelivery(d)
+		if s.RateLimit > 0 {
+			time.Sleep(time.Since(start) + (time.Second / s.RateLimit))
+		}
 	}
 	s.wg.Wait()
 	s.ac.done <- true
