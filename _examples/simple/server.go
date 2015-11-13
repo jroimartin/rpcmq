@@ -14,7 +14,7 @@ import (
 
 func main() {
 	s := rpcmq.NewServer("amqp://amqp_broker:5672",
-		"rcp-queue", "rpc-exchange", "fanout")
+		"rpc-queue", "rpc-exchange", "fanout")
 	if err := s.Register("toUpper", toUpper); err != nil {
 		log.Fatalf("Register: %v", err)
 	}

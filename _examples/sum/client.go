@@ -19,7 +19,7 @@ func main() {
 	rpcmq.Log = log.New(os.Stderr, "client ", log.LstdFlags)
 
 	c := rpcmq.NewClient("amqp://amqp_broker:5672",
-		"rcp-queue", "rpc-client", "rpc-exchange", "direct")
+		"rpc-queue", "rpc-client", "rpc-exchange", "direct")
 	if err := c.Init(); err != nil {
 		log.Fatalf("Init: %v", err)
 	}

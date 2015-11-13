@@ -42,7 +42,7 @@ type Server struct {
 	// Prefetch allows to define the number of tasks to be "cached"
 	Prefetch int
 
-	// RateLimit allows to define a limit of calls per second
+	// RateLimit allows to define a limit of deliveries handled per second
 	RateLimit time.Duration
 
 	// TLSConfig allows to configure the TLS parameters used to connect to
@@ -164,19 +164,22 @@ func (s *Server) setup() error {
 
 func (s *Server) getDeliveries() {
 	for d := range s.deliveries {
-		var start time.Time
-		if s.RateLimit > 0 {
-			start = time.Now()
-		}
 		s.parallelMethods <- true
 		s.wg.Add(1)
-		go s.handleDelivery(d)
-		if s.RateLimit > 0 {
-			time.Sleep(time.Since(start) + (time.Second / s.RateLimit))
-		}
+		s.parallelHandleDelivery(d)
 	}
 	s.wg.Wait()
 	s.ac.done <- true
+}
+
+func (s *Server) parallelHandleDelivery(d amqp.Delivery) {
+	if s.RateLimit > 0 {
+		start := time.Now()
+		defer func() {
+			time.Sleep(time.Since(start) + (time.Second / s.RateLimit))
+		}()
+	}
+	go s.handleDelivery(d)
 }
 
 func (s *Server) handleDelivery(d amqp.Delivery) {

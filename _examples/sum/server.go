@@ -15,7 +15,7 @@ func main() {
 	rpcmq.Log = log.New(os.Stderr, "server ", log.LstdFlags)
 
 	s := rpcmq.NewServer("amqp://amqp_broker:5672",
-		"rcp-queue", "rpc-exchange", "direct")
+		"rpc-queue", "rpc-exchange", "direct")
 	if err := s.Register("echo", echo); err != nil {
 		log.Fatalf("Register: %v", err)
 	}

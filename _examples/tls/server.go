@@ -37,7 +37,7 @@ func main() {
 	}
 
 	s := rpcmq.NewServer("amqps://amqp_broker:5671",
-		"rcp-queue", "rpc-exchange", "direct")
+		"rpc-queue", "rpc-exchange", "direct")
 	s.TLSConfig = tlsConfig
 	if err := s.Register("toUpper", toUpper); err != nil {
 		log.Fatalf("Register: %v", err)

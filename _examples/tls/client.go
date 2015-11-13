@@ -36,7 +36,7 @@ func main() {
 	}
 
 	c := rpcmq.NewClient("amqps://amqp_broker:5671",
-		"rcp-queue", "rpc-client", "rpc-exchange", "direct")
+		"rpc-queue", "rpc-client", "rpc-exchange", "direct")
 	c.TLSConfig = tlsConfig
 	if err := c.Init(); err != nil {
 		log.Fatalf("Init: %v", err)
