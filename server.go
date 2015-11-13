@@ -176,7 +176,7 @@ func (s *Server) parallelHandleDelivery(d amqp.Delivery) {
 	if s.RateLimit > 0 {
 		start := time.Now()
 		defer func() {
-			time.Sleep(time.Since(start) + (time.Second / s.RateLimit))
+			time.Sleep((time.Second / s.RateLimit) - time.Since(start))
 		}()
 	}
 	go s.handleDelivery(d)
