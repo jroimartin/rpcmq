@@ -34,6 +34,8 @@ type Server struct {
 	wg              sync.WaitGroup
 	parallelMethods chan bool
 	deliveries      <-chan amqp.Delivery
+	// Delivery mode (amqp.Transient or amqp.Persistent)
+	DeliveryMode uint8
 
 	// Parallel allows to define the number of methods to be run in
 	// parallel
@@ -69,6 +71,7 @@ func NewServer(uri, msgsQueue, exchange, kind string) *Server {
 		Parallel:     runtime.NumCPU(),
 		Prefetch:     runtime.NumCPU(),
 		RateLimit:    0,
+		DeliveryMode: amqp.Persistent,
 	}
 	s.ac.setupFunc = s.setup
 	return s
@@ -240,7 +243,7 @@ func (s *Server) handleDelivery(d amqp.Delivery) {
 			ReplyTo:       d.ReplyTo,
 			ContentType:   "application/json",
 			Body:          body,
-			DeliveryMode:  amqp.Persistent,
+			DeliveryMode:  s.DeliveryMode,
 		},
 	)
 	if err != nil {

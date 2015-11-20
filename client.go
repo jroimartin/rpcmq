@@ -25,6 +25,7 @@ type Client struct {
 	repliesQueue amqp.Queue
 	mandatory    bool
 	deliveries   <-chan amqp.Delivery
+	DeliveryMode uint8
 	results      chan Result
 
 	// TLSConfig allows to configure the TLS parameters used to connect to
@@ -63,6 +64,7 @@ func NewClient(uri, msgsQueue, repliesQueue, exchange, kind string) *Client {
 		exchangeKind: kind,
 		ac:           newAmqpClient(uri),
 		results:      make(chan Result),
+		DeliveryMode: amqp.Persistent,
 	}
 	c.ac.setupFunc = c.setup
 	return c
@@ -224,7 +226,7 @@ func (c *Client) Call(method string, data []byte, ttl time.Duration) (id string,
 			ReplyTo:       c.repliesQueue.Name,
 			ContentType:   "application/json",
 			Body:          body,
-			DeliveryMode:  amqp.Persistent,
+			DeliveryMode:  c.DeliveryMode,
 			Expiration:    expiration,
 		},
 	)

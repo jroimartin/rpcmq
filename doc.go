@@ -9,7 +9,7 @@ Client/Server initialization
 
 It is important to note that both clients and servers must be initialized
 before being used. Also, any configuration parameter (TLSConfig, Parallel,
-Prefetch and RateLimit) should be set up before calling Init().
+Prefetch, RateLimit and DeliveryMode) should be set up before calling Init().
 
 SSL/TLS
 
