@@ -16,9 +16,8 @@ import (
 	"github.com/streadway/amqp"
 )
 
-// The type Function declares the signature of the methods that can be
-// registered by an RPC server. The id parameter contains the uuid of
-// the task being executed.
+// Function declares the signature of the methods that can be registered by an
+// RPC server. The id parameter contains the uuid of the task being executed.
 type Function func(id string, data []byte) ([]byte, error)
 
 // A Server is an RPC sever, which is used to register the methods than can be

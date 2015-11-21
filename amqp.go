@@ -15,7 +15,7 @@ import (
 
 // RetrySleep is the time between retries if the connection with the broker
 // is lost.
-var RetrySleep time.Duration = 2 * time.Second
+var RetrySleep = 2 * time.Second
 
 type publishing struct {
 	msg       amqp.Publishing
