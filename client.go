@@ -25,11 +25,14 @@ type Client struct {
 	repliesQueue amqp.Queue
 	mandatory    bool
 	deliveries   <-chan amqp.Delivery
-	DeliveryMode uint8
 	results      chan Result
 
+	// DeliveryMode allows to configure the delivery mode followed by the
+	// broker. The default mode is Persistent.
+	DeliveryMode DeliveryMode
+
 	// TLSConfig allows to configure the TLS parameters used to connect to
-	// the broker via amqps
+	// the broker via amqps.
 	TLSConfig *tls.Config
 }
 
@@ -64,7 +67,7 @@ func NewClient(uri, msgsQueue, repliesQueue, exchange, kind string) *Client {
 		exchangeKind: kind,
 		ac:           newAmqpClient(uri),
 		results:      make(chan Result),
-		DeliveryMode: amqp.Persistent,
+		DeliveryMode: Persistent,
 	}
 	c.ac.setupFunc = c.setup
 	return c
@@ -226,7 +229,7 @@ func (c *Client) Call(method string, data []byte, ttl time.Duration) (id string,
 			ReplyTo:       c.repliesQueue.Name,
 			ContentType:   "application/json",
 			Body:          body,
-			DeliveryMode:  c.DeliveryMode,
+			DeliveryMode:  uint8(c.DeliveryMode),
 			Expiration:    expiration,
 		},
 	)

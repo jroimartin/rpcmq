@@ -22,6 +22,20 @@ type publishing struct {
 	timestamp time.Time
 }
 
+// DeliveryMode represents the boker's delivery mode.
+type DeliveryMode uint8
+
+// Delivery modes.
+const (
+	// Persistent delivery mode means that messages will be restored to
+	// durable queues during server restart.
+	Persistent = DeliveryMode(amqp.Persistent)
+
+	// Transient delivery mode means higher throughput but messages will
+	// not be restored on broker restart.
+	Transient = DeliveryMode(amqp.Transient)
+)
+
 type amqpClient struct {
 	uri         string
 	consumerTag string
@@ -31,7 +45,7 @@ type amqpClient struct {
 	done    chan bool
 
 	// The mutex protects the acks/nacks channels from being used
-	// simultaneously by multiple publishing processes
+	// simultaneously by multiple publishing processes.
 	mu          sync.Mutex
 	acks, nacks chan uint64
 

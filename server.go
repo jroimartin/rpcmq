@@ -34,21 +34,23 @@ type Server struct {
 	wg              sync.WaitGroup
 	parallelMethods chan bool
 	deliveries      <-chan amqp.Delivery
-	// Delivery mode (amqp.Transient or amqp.Persistent)
-	DeliveryMode uint8
+
+	// DeliveryMode allows to configure the delivery mode followed by the
+	// broker. The default mode is Persistent.
+	DeliveryMode DeliveryMode
 
 	// Parallel allows to define the number of methods to be run in
-	// parallel
+	// parallel.
 	Parallel int
 
-	// Prefetch allows to define the number of tasks to be "cached"
+	// Prefetch allows to define the number of tasks to be "cached".
 	Prefetch int
 
-	// RateLimit allows to define a limit of deliveries handled per second
+	// RateLimit allows to define a limit of deliveries handled per second.
 	RateLimit time.Duration
 
 	// TLSConfig allows to configure the TLS parameters used to connect to
-	// the broker via amqps
+	// the broker via amqps.
 	TLSConfig *tls.Config
 }
 
@@ -71,7 +73,7 @@ func NewServer(uri, msgsQueue, exchange, kind string) *Server {
 		Parallel:     runtime.NumCPU(),
 		Prefetch:     runtime.NumCPU(),
 		RateLimit:    0,
-		DeliveryMode: amqp.Persistent,
+		DeliveryMode: Persistent,
 	}
 	s.ac.setupFunc = s.setup
 	return s
@@ -243,7 +245,7 @@ func (s *Server) handleDelivery(d amqp.Delivery) {
 			ReplyTo:       d.ReplyTo,
 			ContentType:   "application/json",
 			Body:          body,
-			DeliveryMode:  s.DeliveryMode,
+			DeliveryMode:  uint8(s.DeliveryMode),
 		},
 	)
 	if err != nil {
