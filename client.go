@@ -69,6 +69,15 @@ func NewClient(uri, msgsQueue, repliesQueue, exchange, kind string) *Client {
 		results:      make(chan Result),
 		DeliveryMode: Persistent,
 	}
+
+	// In fanout mode the routing key is not really used, so using
+	// the mandatory flag does not make sense
+	if kind == "fanout" {
+		c.mandatory = false
+	} else {
+		c.mandatory = true
+	}
+
 	c.ac.setupFunc = c.setup
 	return c
 }
@@ -207,12 +216,6 @@ func (c *Client) Call(method string, data []byte, ttl time.Duration) (id string,
 	expiration := ""
 	if ttl > 0 {
 		expiration = fmt.Sprintf("%d", int64(ttl.Seconds()*1000))
-	}
-	c.mandatory = true
-	if c.exchangeKind == "fanout" {
-		// In fanout mode the routing key is not really used, so using
-		// the mandatory flag does not make sense
-		c.mandatory = false
 	}
 
 	// guarantee that the received ack/nack corresponds with this publishing
