@@ -57,25 +57,25 @@ type rpcMsg struct {
 // type of exchange that will be created. In fanout mode the queue name is
 // ignored, so each queue has its own unique id.
 func NewClient(uri, msgsQueue, repliesQueue, exchange, kind string) *Client {
+	// In fanout mode queue names must be unique. Also, the routing key is
+	// not really used, so using the mandatory flag does not make sense.
+	var mandatory bool
 	if kind == "fanout" {
 		msgsQueue = "" // in fanout mode queue names must be unique
+		mandatory = false
+	} else {
+		mandatory = true
 	}
+
 	c := &Client{
 		msgsName:     msgsQueue,
 		repliesName:  repliesQueue,
 		exchangeName: exchange,
 		exchangeKind: kind,
+		mandatory:    mandatory,
 		ac:           newAmqpClient(uri),
 		results:      make(chan Result),
 		DeliveryMode: Persistent,
-	}
-
-	// In fanout mode the routing key is not really used, so using
-	// the mandatory flag does not make sense
-	if kind == "fanout" {
-		c.mandatory = false
-	} else {
-		c.mandatory = true
 	}
 
 	c.ac.setupFunc = c.setup
