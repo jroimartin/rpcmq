@@ -47,8 +47,8 @@ func main() {
 	time.Sleep(1 * time.Minute)
 }
 
-func toUpper(data []byte) ([]byte, error) {
-	log.Printf("Received: toUpper(%v)\n", string(data))
+func toUpper(id string, data []byte) ([]byte, error) {
+	log.Printf("Received (%v): toUpper(%v)\n", id, string(data))
 	return []byte(strings.ToUpper(string(data))), nil
 }
 ```
